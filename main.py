@@ -150,3 +150,181 @@ STATUS_LABELS = {
     "done": {"uz": "✅ Yetkazildi", "ru": "✅ Доставлен"},
     "cancelled": {"uz": "❌ Bekor qilindi", "ru": "❌ Отменён"},
 }
+def main_menu_kb(lang):
+    if lang == "uz":
+        keys = [
+            ["🛒 Katalog", "🔍 Qidirish"],
+            ["🛒 Savat", "🔁 Oxirgi zakaz"],
+            ["🎁 Aksiyalar", "⭐ Izoh qoldirish"],
+            ["ℹ️ Biz haqimizda", "🤝 Hamkorlik"],
+        ]
+    else:
+        keys = [
+            ["🛒 Каталог", "🔍 Поиск"],
+            ["🛒 Корзина", "🔁 Повторить заказ"],
+            ["🎁 Акции", "⭐ Оставить отзыв"],
+            ["ℹ️ О нас", "🤝 Сотрудничество"],
+        ]
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=k) for k in row] for row in keys],
+        resize_keyboard=True
+    )
+
+def lang_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang_uz"),
+         InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru")]
+    ])
+
+def district_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏘 Alijon MFY", callback_data="district_Alijon MFY")],
+        [InlineKeyboardButton(text="🏙 Buston hududi", callback_data="district_Buston hududi")],
+    ])
+
+def phone_kb(lang):
+    label = "📱 Raqamni ulashish" if lang == "uz" else "📱 Поделиться номером"
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=label, request_contact=True)]],
+        resize_keyboard=True, one_time_keyboard=True
+    )
+
+def cart_kb(lang):
+    if lang == "uz":
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Zakaz berish", callback_data="checkout")],
+            [InlineKeyboardButton(text="🗑 Savatni tozalash", callback_data="clear_cart")],
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_main")],
+        ])
+    else:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Оформить заказ", callback_data="checkout")],
+            [InlineKeyboardButton(text="🗑 Очистить корзину", callback_data="clear_cart")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_main")],
+        ])
+
+def delivery_kb(lang):
+    if lang == "uz":
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🚚 Yetkazib berish", callback_data="del_delivery")],
+            [InlineKeyboardButton(text="🏪 O'zim olib ketaman", callback_data="del_pickup")],
+        ])
+    else:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🚚 Доставка", callback_data="del_delivery")],
+            [InlineKeyboardButton(text="🏪 Самовывоз", callback_data="del_pickup")],
+        ])
+
+def confirm_kb(lang):
+    if lang == "uz":
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Tasdiqlash", callback_data="order_confirm")],
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="order_cancel")],
+        ])
+    else:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Подтвердить", callback_data="order_confirm")],
+            [InlineKeyboardButton(text="❌ Отменить", callback_data="order_cancel")],
+        ])
+
+def rating_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'⭐'*i}", callback_data=f"rating_{i}") for i in range(1, 6)]
+    ])
+
+def cart_total(cart: dict) -> int:
+    return sum(v["price"] * v["qty"] for v in cart.values())
+
+def cart_text(cart: dict, lang: str) -> str:
+    lines = []
+    for i, (pid, v) in enumerate(cart.items(), 1):
+        name = v["name_uz"] if lang == "uz" else v["name_ru"]
+        lines.append(f"{i}. {name} x{v['qty']} = {v['price']*v['qty']:,} so'm")
+    return "\n".join(lines)
+    async def categories_kb(lang):
+    cats = await db.get_categories()
+    buttons = []
+    for c in cats:
+        name = c["name_uz"] if lang == "uz" else c["name_ru"]
+        buttons.append([InlineKeyboardButton(
+            text=f"{c['emoji']} {name}",
+            callback_data=f"cat_{c['id']}"
+        )])
+    back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
+    buttons.append([InlineKeyboardButton(text=back, callback_data="back_main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+async def products_kb(cat_id, lang, cart: dict):
+    prods = await db.get_products(cat_id)
+    buttons = []
+    for p in prods:
+        name = p["name_uz"] if lang == "uz" else p["name_ru"]
+        unit = p["unit_uz"] if lang == "uz" else p["unit_ru"]
+        qty = cart.get(str(p["id"]), {}).get("qty", 0)
+        qty_text = f" ({qty} {unit})" if qty > 0 else ""
+        buttons.append([InlineKeyboardButton(
+            text=f"{name} — {p['price']:,} so'm{qty_text}",
+            callback_data=f"prod_info_{p['id']}"
+        )])
+    back = "🔙 Kategoriyalar" if lang == "uz" else "🔙 Категории"
+    buttons.append([InlineKeyboardButton(text=back, callback_data="back_cats")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def product_detail_kb(prod_id, lang, qty):
+    row1 = [
+        InlineKeyboardButton(text="➖", callback_data=f"qty_minus_{prod_id}"),
+        InlineKeyboardButton(text=str(qty), callback_data="qty_noop"),
+        InlineKeyboardButton(text="➕", callback_data=f"qty_plus_{prod_id}"),
+    ]
+    row2 = [InlineKeyboardButton(text="🛒 Savatga" if lang == "uz" else "🛒 В корзину", callback_data=f"add_cart_{prod_id}")]
+    row3 = [InlineKeyboardButton(text="🔙 Orqaga" if lang == "uz" else "🔙 Назад", callback_data=f"back_prod_{prod_id}")]
+    return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
+
+def order_status_kb(order_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Qabul", callback_data=f"status_{order_id}_accepted"),
+         InlineKeyboardButton(text="📦 Yig'ilmoqda", callback_data=f"status_{order_id}_packing")],
+        [InlineKeyboardButton(text="🚴 Yo'lda", callback_data=f"status_{order_id}_delivery"),
+         InlineKeyboardButton(text="✅ Yetkazildi", callback_data=f"status_{order_id}_done")],
+        [InlineKeyboardButton(text="❌ Bekor", callback_data=f"status_{order_id}_cancelled")],
+    ])
+
+def admin_main_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 Mijozlar soni", callback_data="admin_users"),
+         InlineKeyboardButton(text="📊 Haftalik savdo", callback_data="admin_weekly")],
+        [InlineKeyboardButton(text="🏆 TOP xaridorlar", callback_data="admin_top"),
+         InlineKeyboardButton(text="📋 Zakazlar", callback_data="admin_orders")],
+        [InlineKeyboardButton(text="📦 Mahsulotlar", callback_data="admin_products"),
+         InlineKeyboardButton(text="💬 Izohlar", callback_data="admin_reviews")],
+        [InlineKeyboardButton(text="📢 Aksiya yuborish", callback_data="admin_send_akciya"),
+         InlineKeyboardButton(text="📣 Xabar yuborish", callback_data="admin_broadcast")],
+    ])
+
+def admin_products_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Kategoriya qo'shish", callback_data="admin_add_cat")],
+        [InlineKeyboardButton(text="🗑 Kategoriya o'chirish", callback_data="admin_del_cat")],
+        [InlineKeyboardButton(text="➕ Mahsulot qo'shish", callback_data="admin_add_prod")],
+        [InlineKeyboardButton(text="🗑 Mahsulot o'chirish", callback_data="admin_del_prod")],
+        [InlineKeyboardButton(text="💰 Narx o'zgartirish", callback_data="admin_update_price")],
+        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_back")],
+    ])
+
+def format_order_for_admin(order, user) -> str:
+    items = json.loads(order["items"])
+    items_text = ""
+    for i, item in enumerate(items, 1):
+        items_text += f"{i}. {item['name_uz']} x{item['qty']} = {item['price']*item['qty']:,} so'm\n"
+    dtype = "🚚 Yetkazib berish" if order["delivery_type"] == "delivery" else "🏪 O'zim oladi"
+    return (
+        f"🆕 <b>Yangi zakaz #{order['id']}</b>\n\n"
+        f"👤 Mijoz: {user['name'] if user else 'Noma\\'lum'}\n"
+        f"📱 Telefon: <code>{order['phone']}</code>\n"
+        f"🏘 Hudud: {order['district']}\n"
+        f"🚚 Turi: {dtype}\n"
+        f"📍 Manzil: {order['address']}\n\n"
+        f"🛒 <b>Mahsulotlar:</b>\n{items_text}\n"
+        f"💰 Jami: <b>{order['total']:,} so'm</b>\n"
+        f"⚠️ Yetkazilgan mahsulot qaytarib olinmaydi!"
+    )
