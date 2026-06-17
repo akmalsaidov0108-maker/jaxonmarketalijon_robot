@@ -1,246 +1,34 @@
-import aiosqlite
+
+import asyncio
 import json
+import logging
+import os
 from datetime import datetime
 
-DB_PATH = "jaxon_market.db"
+from aiogram import Bot, Dispatcher, F, Router
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import (
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
+    KeyboardButton, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove
+)
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from dotenv import load_dotenv
 
-async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                name TEXT,
-                phone TEXT,
-                district TEXT,
-                lang TEXT DEFAULT 'uz',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name_uz TEXT NOT NULL,
-                name_ru TEXT NOT NULL,
-                emoji TEXT DEFAULT '📦',
-                is_active INTEGER DEFAULT 1
-            );
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category_id INTEGER,
-                name_uz TEXT NOT NULL,
-                name_ru TEXT NOT NULL,
-                price INTEGER NOT NULL,
-                unit_uz TEXT DEFAULT 'dona',
-                unit_ru TEXT DEFAULT 'шт',
-                is_active INTEGER DEFAULT 1,
-                FOREIGN KEY (category_id) REFERENCES categories(id)
-            );
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                phone TEXT,
-                district TEXT,
-                delivery_type TEXT,
-                address TEXT,
-                items TEXT,
-                total INTEGER,
-                status TEXT DEFAULT 'new',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS reviews (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                user_name TEXT,
-                text TEXT,
-                rating INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS weekly_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                order_count INTEGER DEFAULT 0,
-                total_sum INTEGER DEFAULT 0,
-                week TEXT
-            );
-        """)
-        await db.commit()
+import database as db
 
-async def save_user(user_id, name, phone, district, lang="uz"):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR REPLACE INTO users (id, name, phone, district, lang) VALUES (?,?,?,?,?)",
-            (user_id, name, phone, district, lang)
-        )
-        await db.commit()
+load_dotenv()
 
-async def get_user(user_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users WHERE id=?", (user_id,)) as cur:
-            return await cur.fetchone()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "0").split(",")))
+WORK_START = 8
+WORK_END = 21
+MIN_ALIJON = 20000
+MIN_BUSTON = 40000
+DISTRICTS = {"Alijon MFY": MIN_ALIJON, "Buston hududi": MIN_BUSTON}
 
-async def get_all_users():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM users ORDER BY created_at DESC") as cur:
-            return await cur.fetchall()
-
-async def get_categories():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM categories WHERE is_active=1 ORDER BY id") as cur:
-            return await cur.fetchall()
-
-async def add_category(name_uz, name_ru, emoji="📦"):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO categories (name_uz, name_ru, emoji) VALUES (?,?,?)",
-            (name_uz, name_ru, emoji)
-        )
-        await db.commit()
-
-async def delete_category(cat_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE categories SET is_active=0 WHERE id=?", (cat_id,))
-        await db.commit()
-
-async def get_products(category_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM products WHERE category_id=? AND is_active=1 ORDER BY name_uz", (category_id,)
-        ) as cur:
-            return await cur.fetchall()
-
-async def get_product(product_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM products WHERE id=?", (product_id,)) as cur:
-            return await cur.fetchone()
-
-async def search_products(query):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        q = f"%{query}%"
-        async with db.execute(
-            "SELECT * FROM products WHERE is_active=1 AND (name_uz LIKE ? OR name_ru LIKE ?)", (q, q)
-        ) as cur:
-            return await cur.fetchall()
-
-async def add_product(category_id, name_uz, name_ru, price, unit_uz="dona", unit_ru="шт"):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO products (category_id, name_uz, name_ru, price, unit_uz, unit_ru) VALUES (?,?,?,?,?,?)",
-            (category_id, name_uz, name_ru, price, unit_uz, unit_ru)
-        )
-        await db.commit()
-
-async def update_product_price(product_id, new_price):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE products SET price=? WHERE id=?", (new_price, product_id))
-        await db.commit()
-
-async def delete_product(prod_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE products SET is_active=0 WHERE id=?", (prod_id,))
-        await db.commit()
-
-async def create_order(user_id, phone, district, delivery_type, address, items: list, total):
-    items_json = json.dumps(items, ensure_ascii=False)
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "INSERT INTO orders (user_id, phone, district, delivery_type, address, items, total) VALUES (?,?,?,?,?,?,?)",
-            (user_id, phone, district, delivery_type, address, items_json, total)
-        )
-        await db.commit()
-        order_id = cur.lastrowid
-    week = datetime.now().strftime("%Y-W%W")
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT id FROM weekly_stats WHERE user_id=? AND week=?", (user_id, week)
-        ) as cur2:
-            existing = await cur2.fetchone()
-        if existing:
-            await db.execute(
-                "UPDATE weekly_stats SET order_count=order_count+1, total_sum=total_sum+? WHERE id=?",
-                (total, existing[0])
-            )
-        else:
-            await db.execute(
-                "INSERT INTO weekly_stats (user_id, order_count, total_sum, week) VALUES (?,1,?,?)",
-                (user_id, total, week)
-            )
-        await db.commit()
-    return order_id
-
-async def get_order(order_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM orders WHERE id=?", (order_id,)) as cur:
-            return await cur.fetchone()
-
-async def get_user_last_order(user_id):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 1", (user_id,)
-        ) as cur:
-            return await cur.fetchone()
-
-async def get_orders(status=None):
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        if status:
-            async with db.execute(
-                "SELECT * FROM orders WHERE status=? ORDER BY id DESC", (status,)
-            ) as cur:
-                return await cur.fetchall()
-        async with db.execute("SELECT * FROM orders ORDER BY id DESC LIMIT 100") as cur:
-            return await cur.fetchall()
-
-async def update_order_status(order_id, status):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
-        await db.commit()
-
-async def add_review(user_id, user_name, text, rating):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO reviews (user_id, user_name, text, rating) VALUES (?,?,?,?)",
-            (user_id, user_name, text, rating)
-        )
-        await db.commit()
-
-async def get_reviews():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM reviews ORDER BY id DESC") as cur:
-            return await cur.fetchall()
-
-async def get_weekly_top():
-    week = datetime.now().strftime("%Y-W%W")
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """SELECT ws.user_id, u.name, u.phone, u.district,
-                      ws.order_count, ws.total_sum
-               FROM weekly_stats ws
-               LEFT JOIN users u ON ws.user_id=u.id
-               WHERE ws.week=?
-               ORDER BY ws.order_count DESC LIMIT 10""",
-            (week,)
-        ) as cur:
-            return await cur.fetchall()
-
-async def get_weekly_sales():
-    week = datetime.now().strftime("%Y-W%W")
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT SUM(total_sum), SUM(order_count) FROM weekly_stats WHERE week=?", (week,)
-        ) as cur:
-            row = await cur.fetchone()
-            return {"total": row[0] or 0, "count": row[1] or 0}
-
-async def get_total_users_count():
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT COUNT(*) FROM users") as cur:
-            row = await cur.fetchone()
-            return row[0]
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=BOT_TOKEN)
+router = Router()
