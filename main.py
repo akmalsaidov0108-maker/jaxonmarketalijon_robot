@@ -328,3 +328,114 @@ def format_order_for_admin(order, user) -> str:
         f"💰 Jami: <b>{order['total']:,} so'm</b>\n"
         f"⚠️ Yetkazilgan mahsulot qaytarib olinmaydi!"
     )
+@router.message(Command("start"))
+async def cmd_start(msg: Message, state: FSMContext):
+    await state.clear()
+    user = await db.get_user(msg.from_user.id)
+    if user:
+        lang = user["lang"]
+        await msg.answer(t(lang, "main_menu"), reply_markup=main_menu_kb(lang), parse_mode="HTML")
+        return
+    await msg.answer(t("uz", "choose_lang"), reply_markup=lang_kb(), parse_mode="HTML")
+    await state.set_state(Reg.lang)
+
+@router.callback_query(Reg.lang, F.data.startswith("lang_"))
+async def reg_lang(cb: CallbackQuery, state: FSMContext):
+    lang = cb.data.split("_")[1]
+    await state.update_data(lang=lang)
+    await cb.message.edit_text(t(lang, "ask_phone"), parse_mode="HTML")
+    await cb.message.answer("👇", reply_markup=phone_kb(lang))
+    await state.set_state(Reg.phone)
+
+@router.message(Reg.phone, F.contact)
+async def reg_phone(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+    phone = msg.contact.phone_number
+    await state.update_data(phone=phone)
+    await msg.answer(t(lang, "ask_district"), reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
+    await msg.answer("👇", reply_markup=district_kb())
+    await state.set_state(Reg.district)
+
+@router.callback_query(Reg.district, F.data.startswith("district_"))
+async def reg_district(cb: CallbackQuery, state: FSMContext):
+    district = cb.data[len("district_"):]
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+    phone = data.get("phone", "")
+    name = cb.from_user.full_name
+    await db.save_user(cb.from_user.id, name, phone, district, lang)
+    min_sum = DISTRICTS.get(district, 20000)
+    await cb.message.edit_text(t(lang, "registered", district=district, min_sum=min_sum), parse_mode="HTML")
+    await cb.message.answer(t(lang, "warning_return"), parse_mode="HTML")
+    await asyncio.sleep(1)
+    await cb.message.answer(t(lang, "main_menu"), reply_markup=main_menu_kb(lang), parse_mode="HTML")
+    await state.clear()
+
+async def check_registered(msg: Message):
+    user = await db.get_user(msg.from_user.id)
+    if not user:
+        await msg.answer(T["uz"]["choose_lang"], reply_markup=lang_kb(), parse_mode="HTML")
+        return None
+    return user
+
+@router.message(F.text.in_(["🛒 Katalog", "🛒 Каталог"]))
+async def show_catalog(msg: Message, state: FSMContext):
+    user = await check_registered(msg)
+    if not user:
+        return
+    if not is_work_time():
+        await msg.answer(t(user["lang"], "closed"), parse_mode="HTML")
+        return
+    kb = await categories_kb(user["lang"])
+    await msg.answer(t(user["lang"], "catalog"), reply_markup=kb, parse_mode="HTML")
+
+@router.callback_query(F.data.startswith("cat_"))
+async def show_products(cb: CallbackQuery, state: FSMContext):
+    cat_id = int(cb.data.split("_")[1])
+    lang = await get_lang(cb.from_user.id)
+    data = await state.get_data()
+    cart = data.get("cart", {})
+    cats = await db.get_categories()
+    cat_name = next((c["name_uz"] if lang == "uz" else c["name_ru"] for c in cats if c["id"] == cat_id), "")
+    await state.update_data(current_cat=cat_id)
+    kb = await products_kb(cat_id, lang, cart)
+    await cb.message.edit_text(t(lang, "products", cat=cat_name), reply_markup=kb, parse_mode="HTML")
+
+@router.callback_query(F.data.startswith("prod_info_"))
+async def show_product_detail(cb: CallbackQuery, state: FSMContext):
+    prod_id = int(cb.data.split("_")[2])
+    lang = await get_lang(cb.from_user.id)
+    prod = await db.get_product(prod_id)
+    data = await state.get_data()
+    cart = data.get("cart", {})
+    temp_qty = data.get("temp_qty", {})
+    qty = temp_qty.get(str(prod_id), 1)
+    cart_qty = cart.get(str(prod_id), {}).get("qty", 0)
+    name = prod["name_uz"] if lang == "uz" else prod["name_ru"]
+    unit = prod["unit_uz"] if lang == "uz" else prod["unit_ru"]
+    in_cart = f"\n🛒 Savatda: {cart_qty} {unit}" if cart_qty > 0 else ""
+    text = f"🏷 <b>{name}</b>\n💰 Narxi: <b>{prod['price']:,} so'm / {unit}</b>{in_cart}\n\nMiqdor: <b>{qty}</b>"
+    await cb.message.edit_text(text, reply_markup=product_detail_kb(prod_id, lang, qty), parse_mode="HTML")
+
+@router.callback_query(F.data.startswith("qty_plus_"))
+async def qty_plus(cb: CallbackQuery, state: FSMContext):
+    prod_id = cb.data.split("_")[2]
+    data = await state.get_data()
+    temp_qty = data.get("temp_qty", {})
+    temp_qty[prod_id] = temp_qty.get(prod_id, 1) + 1
+    await state.update_data(temp_qty=temp_qty)
+    await show_product_detail(cb, state)
+
+@router.callback_query(F.data.startswith("qty_minus_"))
+async def qty_minus(cb: CallbackQuery, state: FSMContext):
+    prod_id = cb.data.split("_")[2]
+    data = await state.get_data()
+    temp_qty = data.get("temp_qty", {})
+    temp_qty[prod_id] = max(1, temp_qty.get(prod_id, 1) - 1)
+    await state.update_data(temp_qty=temp_qty)
+    await show_product_detail(cb, state)
+
+@router.callback_query(F.data == "qty_noop")
+async def qty_noop(cb: CallbackQuery):
+    await cb.answer()
