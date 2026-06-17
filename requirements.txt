@@ -1,4 +1,5 @@
-
+BOT_TOKEN=your_token_here
+ADMIN_IDS=123456789
 aiogram==3.7.0
 aiosqlite==0.20.0
 python-dotenv==1.0.0
