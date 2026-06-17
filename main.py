@@ -227,21 +227,21 @@ def confirm_kb(lang):
             [InlineKeyboardButton(text="❌ Отменить", callback_data="order_cancel")],
         ])
 
-def rating_kb():
+async def rating_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"{'⭐'*i}", callback_data=f"rating_{i}") for i in range(1, 6)]
     ])
 
-def cart_total(cart: dict) -> int:
+async def cart_total(cart: dict) -> int:
     return sum(v["price"] * v["qty"] for v in cart.values())
 
-def cart_text(cart: dict, lang: str) -> str:
+async def cart_text(cart: dict, lang: str) -> str:
     lines = []
     for i, (pid, v) in enumerate(cart.items(), 1):
         name = v["name_uz"] if lang == "uz" else v["name_ru"]
         lines.append(f"{i}. {name} x{v['qty']} = {v['price']*v['qty']:,} so'm")
     return "\n".join(lines)
-    async def categories_kb(lang):
+   async def categories_kb(lang):
     cats = await db.get_categories()
     buttons = []
     for c in cats:
@@ -252,8 +252,7 @@ def cart_text(cart: dict, lang: str) -> str:
         )])
     back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
     buttons.append([InlineKeyboardButton(text=back, callback_data="back_main")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
+    return InlineKeyboardMarkup(inline_keyboard=buttons) 
 async def products_kb(cat_id, lang, cart: dict):
     prods = await db.get_products(cat_id)
     buttons = []
