@@ -31,6 +31,10 @@ DISTRICTS = {"Alijon MFY": MIN_ALIJON, "Buston hududi": MIN_BUSTON}
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 router = Router()
+
+# ══════════════════════════════════════════
+# STATES
+# ══════════════════════════════════════════
 class Reg(StatesGroup):
     lang = State()
     phone = State()
@@ -66,20 +70,12 @@ class ReviewSt(StatesGroup):
 class SearchSt(StatesGroup):
     query = State()
 
-def is_work_time():
-    h = datetime.now().hour
-    return WORK_START <= h < WORK_END
-
-async def get_lang(user_id):
-    user = await db.get_user(user_id)
-    return user["lang"] if user else "uz"
-
-def t(lang, key, **kwargs):
-    text = T[lang].get(key, T["uz"].get(key, ""))
-    return text.format(**kwargs) if kwargs else text
+# ══════════════════════════════════════════
+# TEXTS
+# ══════════════════════════════════════════
 T = {
     "uz": {
-        "welcome": "🌟 <b>Jaxon Market</b>ga xush kelibsiz!",
+        "welcome": "🌟 <b>Jaxon Market</b>ga xush kelibsiz!\n\nMahalla va telefon raqamingizni kiritib, xarid qilishni boshlang.",
         "choose_lang": "🌐 Tilni tanlang / Выберите язык:",
         "ask_phone": "📱 Telefon raqamingizni ulashing:",
         "ask_district": "🏘 Manzilingiz — qaysi hududda?",
@@ -93,13 +89,39 @@ T = {
         "added_to_cart": "✅ Savatga qo'shildi!",
         "choose_delivery": "🚚 Yetkazib berish turini tanlang:",
         "ask_address": "📍 Yetkazib berish manzilingizni yozing:",
-        "order_confirm": "📋 <b>Zakaz tasdiqlash</b>\n\n{items}\n💰 Jami: <b>{total:,} so'm</b>\n🚚 Turi: <b>{dtype}</b>\n📍 Manzil: <b>{address}</b>\n📱 Telefon: <b>{phone}</b>\n\n✅ Tasdiqlaysizmi?",
-        "order_placed": "🎉 Zakaz #{order_id} qabul qilindi!\n\nHolat: ⏳ Ko'rib chiqilmoqda",
+        "order_confirm": (
+            "📋 <b>Zakaz tasdiqlash</b>\n\n"
+            "{items}\n"
+            "💰 Jami: <b>{total:,} so'm</b>\n"
+            "🚚 Turi: <b>{dtype}</b>\n"
+            "📍 Manzil: <b>{address}</b>\n"
+            "📱 Telefon: <b>{phone}</b>\n\n"
+            "✅ Tasdiqlaysizmi?"
+        ),
+        "order_placed": "🎉 Zakaz #{order_id} qabul qilindi!\n\nHolat: ⏳ Ko'rib chiqilmoqda\nXabar bering, tez yetkazamiz!",
         "order_cancelled": "❌ Zakaz bekor qilindi.",
-        "closed": "🕐 Hozir ish vaqti emas.\n\nBiz <b>08:00–21:00</b> gacha ishlaymiz.",
-        "about": "🏪 <b>Jaxon Market</b>\n\nAlijon mahallasi va Buston hududi uchun qulay onlayn oziq-ovqat do'koni.\n\n🕐 Ish vaqti: 08:00 – 21:00\n📦 Minimal zakaz:\n  • Alijon MFY: 20 000 so'm\n  • Buston hududi: 40 000 so'm\n\n⚠️ Yetkazilgan mahsulot qaytarib olinmaydi",
-        "partnership": "🤝 <b>Hamkorlik</b>\n\nAdminimizga murojaat qiling.\n\n📩 Admin: @jaxon_market_admin",
-        "aksiya": "🎁 <b>Aksiyalar</b>\n\nHozircha yangi aksiyalar yo'q.",
+        "closed": "🕐 Hozir ish vaqti emas.\n\nBiz <b>08:00–21:00</b> gacha ishlaymiz.\nErtaga keling! 😊",
+        "about": (
+            "🏪 <b>Jaxon Market</b>\n\n"
+            "Alijon mahallasi va Buston hududi uchun\n"
+            "qulay onlayn oziq-ovqat do'koni.\n\n"
+            "🕐 Ish vaqti: 08:00 – 21:00\n"
+            "📦 Minimal zakaz:\n"
+            "  • Alijon MFY: 20 000 so'm\n"
+            "  • Buston hududi: 40 000 so'm\n\n"
+            "⚠️ Yetkazilgan mahsulot qaytarib olinmaydi\n"
+            "(buzilmagan, achimaganligini tekshiring)\n\n"
+            "📞 Aloqa uchun admin bilan bog'laning."
+        ),
+        "partnership": (
+            "🤝 <b>Hamkorlik</b>\n\n"
+            "Jaxon Market bilan hamkorlik qilmoqchimisiz?\n\n"
+            "Mahsulotlaringizni bizda sotishni xohlasangiz\n"
+            "yoki boshqa takliflaringiz bo'lsa,\n"
+            "adminimizga murojaat qiling.\n\n"
+            "📩 Admin: @jaxon_market_admin"
+        ),
+        "aksiya": "🎁 <b>Aksiyalar</b>\n\nHozircha yangi aksiyalar yo'q.\nKuzatib boring — tez orada bo'ladi! 🔥",
         "ask_review_rating": "⭐ Xizmatimizni baholang (1-5):",
         "ask_review_text": "✍️ Izohingizni yozing:",
         "review_sent": "✅ Izohingiz uchun rahmat!",
@@ -107,10 +129,20 @@ T = {
         "search_empty": "❌ Hech narsa topilmadi.",
         "repeat_order": "🔁 Oldingi zakazingiz savatchaga solinmoqda...",
         "no_prev_order": "❌ Oldingi zakaz topilmadi.",
-        "warning_return": "⚠️ <b>Diqqat!</b>\n\nYetkazib berilgan mahsulotlar qaytarib olinmaydi.",
+        "status_new": "⏳ Ko'rib chiqilmoqda",
+        "status_accepted": "✅ Qabul qilindi",
+        "status_packing": "📦 Yig'ilmoqda",
+        "status_delivery": "🚴 Yo'lda",
+        "status_done": "✅ Yetkazildi",
+        "status_cancelled": "❌ Bekor qilindi",
+        "warning_return": (
+            "⚠️ <b>Diqqat!</b>\n\n"
+            "Yetkazib berilgan mahsulotlar qaytarib olinmaydi.\n"
+            "Zakaz berishdan oldin mahsulot tarkibini diqqat bilan ko'rib chiqing."
+        ),
     },
     "ru": {
-        "welcome": "🌟 Добро пожаловать в <b>Jaxon Market</b>!",
+        "welcome": "🌟 Добро пожаловать в <b>Jaxon Market</b>!\n\nВведите адрес и номер телефона, чтобы начать покупки.",
         "choose_lang": "🌐 Tilni tanlang / Выберите язык:",
         "ask_phone": "📱 Поделитесь номером телефона:",
         "ask_district": "🏘 Укажите ваш район:",
@@ -124,13 +156,39 @@ T = {
         "added_to_cart": "✅ Добавлено в корзину!",
         "choose_delivery": "🚚 Выберите тип доставки:",
         "ask_address": "📍 Напишите адрес доставки:",
-        "order_confirm": "📋 <b>Подтверждение заказа</b>\n\n{items}\n💰 Итого: <b>{total:,} сум</b>\n🚚 Тип: <b>{dtype}</b>\n📍 Адрес: <b>{address}</b>\n📱 Телефон: <b>{phone}</b>\n\n✅ Подтвердить?",
-        "order_placed": "🎉 Заказ #{order_id} принят!\n\nСтатус: ⏳ На рассмотрении",
+        "order_confirm": (
+            "📋 <b>Подтверждение заказа</b>\n\n"
+            "{items}\n"
+            "💰 Итого: <b>{total:,} сум</b>\n"
+            "🚚 Тип: <b>{dtype}</b>\n"
+            "📍 Адрес: <b>{address}</b>\n"
+            "📱 Телефон: <b>{phone}</b>\n\n"
+            "✅ Подтвердить?"
+        ),
+        "order_placed": "🎉 Заказ #{order_id} принят!\n\nСтатус: ⏳ На рассмотрении\nСкоро доставим!",
         "order_cancelled": "❌ Заказ отменён.",
-        "closed": "🕐 Сейчас не рабочее время.\n\nМы работаем с <b>08:00 до 21:00</b>.",
-        "about": "🏪 <b>Jaxon Market</b>\n\nУдобный онлайн-магазин продуктов для Alijon MFY и Buston.\n\n🕐 Время работы: 08:00 – 21:00\n📦 Минимальный заказ:\n  • Alijon MFY: 20 000 сум\n  • Buston: 40 000 сум\n\n⚠️ Доставленный товар возврату не подлежит",
-        "partnership": "🤝 <b>Сотрудничество</b>\n\nОбратитесь к нашему администратору.\n\n📩 Admin: @jaxon_market_admin",
-        "aksiya": "🎁 <b>Акции</b>\n\nПока акций нет.",
+        "closed": "🕐 Сейчас не рабочее время.\n\nМы работаем с <b>08:00 до 21:00</b>.\nПриходите завтра! 😊",
+        "about": (
+            "🏪 <b>Jaxon Market</b>\n\n"
+            "Удобный онлайн-магазин продуктов\n"
+            "для Alijon MFY и Buston.\n\n"
+            "🕐 Время работы: 08:00 – 21:00\n"
+            "📦 Минимальный заказ:\n"
+            "  • Alijon MFY: 20 000 сум\n"
+            "  • Buston: 40 000 сум\n\n"
+            "⚠️ Доставленный товар возврату не подлежит\n"
+            "(проверяйте при получении)\n\n"
+            "📞 По вопросам — обратитесь к администратору."
+        ),
+        "partnership": (
+            "🤝 <b>Сотрудничество</b>\n\n"
+            "Хотите сотрудничать с Jaxon Market?\n\n"
+            "Если хотите продавать свои товары у нас\n"
+            "или есть другие предложения,\n"
+            "обратитесь к нашему администратору.\n\n"
+            "📩 Admin: @jaxon_market_admin"
+        ),
+        "aksiya": "🎁 <b>Акции</b>\n\nПока акций нет.\nСледите — скоро будет! 🔥",
         "ask_review_rating": "⭐ Оцените наш сервис (1-5):",
         "ask_review_text": "✍️ Напишите отзыв:",
         "review_sent": "✅ Спасибо за отзыв!",
@@ -138,7 +196,17 @@ T = {
         "search_empty": "❌ Ничего не найдено.",
         "repeat_order": "🔁 Загружаю ваш предыдущий заказ...",
         "no_prev_order": "❌ Предыдущий заказ не найден.",
-        "warning_return": "⚠️ <b>Внимание!</b>\n\nДоставленные товары возврату не подлежат.",
+        "status_new": "⏳ На рассмотрении",
+        "status_accepted": "✅ Принят",
+        "status_packing": "📦 Комплектуется",
+        "status_delivery": "🚴 В пути",
+        "status_done": "✅ Доставлен",
+        "status_cancelled": "❌ Отменён",
+        "warning_return": (
+            "⚠️ <b>Внимание!</b>\n\n"
+            "Доставленные товары возврату не подлежат.\n"
+            "Внимательно ознакомьтесь с составом заказа перед оформлением."
+        ),
     }
 }
 
@@ -150,6 +218,22 @@ STATUS_LABELS = {
     "done": {"uz": "✅ Yetkazildi", "ru": "✅ Доставлен"},
     "cancelled": {"uz": "❌ Bekor qilindi", "ru": "❌ Отменён"},
 }
+
+# ══════════════════════════════════════════
+# HELPERS
+# ══════════════════════════════════════════
+def is_work_time():
+    h = datetime.now().hour
+    return WORK_START <= h < WORK_END
+
+async def get_lang(user_id):
+    user = await db.get_user(user_id)
+    return user["lang"] if user else "uz"
+
+def t(lang, key, **kwargs):
+    text = T[lang].get(key, T["uz"].get(key, ""))
+    return text.format(**kwargs) if kwargs else text
+
 def main_menu_kb(lang):
     if lang == "uz":
         keys = [
@@ -189,6 +273,49 @@ def phone_kb(lang):
         resize_keyboard=True, one_time_keyboard=True
     )
 
+async def categories_kb(lang):
+    cats = await db.get_categories()
+    buttons = []
+    for c in cats:
+        name = c["name_uz"] if lang == "uz" else c["name_ru"]
+        buttons.append([InlineKeyboardButton(
+            text=f"{c['emoji']} {name}",
+            callback_data=f"cat_{c['id']}"
+        )])
+    back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
+    buttons.append([InlineKeyboardButton(text=back, callback_data="back_main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+async def products_kb(cat_id, lang, cart: dict):
+    prods = await db.get_products(cat_id)
+    buttons = []
+    for p in prods:
+        name = p["name_uz"] if lang == "uz" else p["name_ru"]
+        unit = p["unit_uz"] if lang == "uz" else p["unit_ru"]
+        qty = cart.get(str(p["id"]), {}).get("qty", 0)
+        qty_text = f" ({qty} {unit})" if qty > 0 else ""
+        buttons.append([InlineKeyboardButton(
+            text=f"{name} — {p['price']:,} so'm{qty_text}",
+            callback_data=f"prod_info_{p['id']}"
+        )])
+    back = "🔙 Kategoriyalar" if lang == "uz" else "🔙 Категории"
+    buttons.append([InlineKeyboardButton(text=back, callback_data="back_cats")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def product_detail_kb(prod_id, lang, qty):
+    minus = "➖"
+    plus = "➕"
+    cart_label = "🛒 Savatga" if lang == "uz" else "🛒 В корзину"
+    back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
+    row1 = [
+        InlineKeyboardButton(text=minus, callback_data=f"qty_minus_{prod_id}"),
+        InlineKeyboardButton(text=str(qty), callback_data="qty_noop"),
+        InlineKeyboardButton(text=plus, callback_data=f"qty_plus_{prod_id}"),
+    ]
+    row2 = [InlineKeyboardButton(text=cart_label, callback_data=f"add_cart_{prod_id}")]
+    row3 = [InlineKeyboardButton(text=back, callback_data=f"back_prod_{prod_id}")]
+    return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
+
 def cart_kb(lang):
     if lang == "uz":
         return InlineKeyboardMarkup(inline_keyboard=[
@@ -227,58 +354,6 @@ def confirm_kb(lang):
             [InlineKeyboardButton(text="❌ Отменить", callback_data="order_cancel")],
         ])
 
-async def rating_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{'⭐'*i}", callback_data=f"rating_{i}") for i in range(1, 6)]
-    ])
-
-async def cart_total(cart: dict) -> int:
-    return sum(v["price"] * v["qty"] for v in cart.values())
-
-async def cart_text(cart: dict, lang: str) -> str:
-    lines = []
-    for i, (pid, v) in enumerate(cart.items(), 1):
-        name = v["name_uz"] if lang == "uz" else v["name_ru"]
-        lines.append(f"{i}. {name} x{v['qty']} = {v['price']*v['qty']:,} so'm")
-    return "\n".join(lines)
-   async def categories_kb(lang):
-    cats = await db.get_categories()
-    buttons = []
-    for c in cats:
-        name = c["name_uz"] if lang == "uz" else c["name_ru"]
-        buttons.append([InlineKeyboardButton(
-            text=f"{c['emoji']} {name}",
-            callback_data=f"cat_{c['id']}"
-        )])
-    back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
-    buttons.append([InlineKeyboardButton(text=back, callback_data="back_main")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons) 
-async def products_kb(cat_id, lang, cart: dict):
-    prods = await db.get_products(cat_id)
-    buttons = []
-    for p in prods:
-        name = p["name_uz"] if lang == "uz" else p["name_ru"]
-        unit = p["unit_uz"] if lang == "uz" else p["unit_ru"]
-        qty = cart.get(str(p["id"]), {}).get("qty", 0)
-        qty_text = f" ({qty} {unit})" if qty > 0 else ""
-        buttons.append([InlineKeyboardButton(
-            text=f"{name} — {p['price']:,} so'm{qty_text}",
-            callback_data=f"prod_info_{p['id']}"
-        )])
-    back = "🔙 Kategoriyalar" if lang == "uz" else "🔙 Категории"
-    buttons.append([InlineKeyboardButton(text=back, callback_data="back_cats")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-def product_detail_kb(prod_id, lang, qty):
-    row1 = [
-        InlineKeyboardButton(text="➖", callback_data=f"qty_minus_{prod_id}"),
-        InlineKeyboardButton(text=str(qty), callback_data="qty_noop"),
-        InlineKeyboardButton(text="➕", callback_data=f"qty_plus_{prod_id}"),
-    ]
-    row2 = [InlineKeyboardButton(text="🛒 Savatga" if lang == "uz" else "🛒 В корзину", callback_data=f"add_cart_{prod_id}")]
-    row3 = [InlineKeyboardButton(text="🔙 Orqaga" if lang == "uz" else "🔙 Назад", callback_data=f"back_prod_{prod_id}")]
-    return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
-
 def order_status_kb(order_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Qabul", callback_data=f"status_{order_id}_accepted"),
@@ -286,6 +361,11 @@ def order_status_kb(order_id):
         [InlineKeyboardButton(text="🚴 Yo'lda", callback_data=f"status_{order_id}_delivery"),
          InlineKeyboardButton(text="✅ Yetkazildi", callback_data=f"status_{order_id}_done")],
         [InlineKeyboardButton(text="❌ Bekor", callback_data=f"status_{order_id}_cancelled")],
+    ])
+
+def rating_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'⭐'*i}", callback_data=f"rating_{i}") for i in range(1, 6)]
     ])
 
 def admin_main_kb():
@@ -310,6 +390,16 @@ def admin_products_kb():
         [InlineKeyboardButton(text="🔙 Orqaga", callback_data="admin_back")],
     ])
 
+def cart_total(cart: dict) -> int:
+    return sum(v["price"] * v["qty"] for v in cart.values())
+
+def cart_text(cart: dict, lang: str) -> str:
+    lines = []
+    for i, (pid, v) in enumerate(cart.items(), 1):
+        name = v["name_uz"] if lang == "uz" else v["name_ru"]
+        lines.append(f"{i}. {name} x{v['qty']} = {v['price']*v['qty']:,} so'm")
+    return "\n".join(lines)
+
 def format_order_for_admin(order, user) -> str:
     items = json.loads(order["items"])
     items_text = ""
@@ -318,7 +408,7 @@ def format_order_for_admin(order, user) -> str:
     dtype = "🚚 Yetkazib berish" if order["delivery_type"] == "delivery" else "🏪 O'zim oladi"
     return (
         f"🆕 <b>Yangi zakaz #{order['id']}</b>\n\n"
-        f"👤 Mijoz: {user['name'] if user else 'Noma\\'lum'}\n"
+        f"👤 Mijoz: {user['name'] if user else 'Noma'lum'}\n"
         f"📱 Telefon: <code>{order['phone']}</code>\n"
         f"🏘 Hudud: {order['district']}\n"
         f"🚚 Turi: {dtype}\n"
@@ -327,6 +417,10 @@ def format_order_for_admin(order, user) -> str:
         f"💰 Jami: <b>{order['total']:,} so'm</b>\n"
         f"⚠️ Yetkazilgan mahsulot qaytarib olinmaydi!"
     )
+
+# ══════════════════════════════════════════
+# REGISTRATION
+# ══════════════════════════════════════════
 @router.message(Command("start"))
 async def cmd_start(msg: Message, state: FSMContext):
     await state.clear()
@@ -352,7 +446,8 @@ async def reg_phone(msg: Message, state: FSMContext):
     lang = data.get("lang", "uz")
     phone = msg.contact.phone_number
     await state.update_data(phone=phone)
-    await msg.answer(t(lang, "ask_district"), reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
+    await msg.answer(t(lang, "ask_district"),
+                     reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
     await msg.answer("👇", reply_markup=district_kb())
     await state.set_state(Reg.district)
 
@@ -365,12 +460,18 @@ async def reg_district(cb: CallbackQuery, state: FSMContext):
     name = cb.from_user.full_name
     await db.save_user(cb.from_user.id, name, phone, district, lang)
     min_sum = DISTRICTS.get(district, 20000)
-    await cb.message.edit_text(t(lang, "registered", district=district, min_sum=min_sum), parse_mode="HTML")
+    await cb.message.edit_text(
+        t(lang, "registered", district=district, min_sum=min_sum), parse_mode="HTML"
+    )
     await cb.message.answer(t(lang, "warning_return"), parse_mode="HTML")
     await asyncio.sleep(1)
-    await cb.message.answer(t(lang, "main_menu"), reply_markup=main_menu_kb(lang), parse_mode="HTML")
+    await cb.message.answer(t(lang, "main_menu"),
+                             reply_markup=main_menu_kb(lang), parse_mode="HTML")
     await state.clear()
 
+# ══════════════════════════════════════════
+# WORK TIME CHECK
+# ══════════════════════════════════════════
 async def check_registered(msg: Message):
     user = await db.get_user(msg.from_user.id)
     if not user:
@@ -378,6 +479,9 @@ async def check_registered(msg: Message):
         return None
     return user
 
+# ══════════════════════════════════════════
+# CATALOG
+# ══════════════════════════════════════════
 @router.message(F.text.in_(["🛒 Katalog", "🛒 Каталог"]))
 async def show_catalog(msg: Message, state: FSMContext):
     user = await check_registered(msg)
@@ -396,10 +500,13 @@ async def show_products(cb: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     cart = data.get("cart", {})
     cats = await db.get_categories()
-    cat_name = next((c["name_uz"] if lang == "uz" else c["name_ru"] for c in cats if c["id"] == cat_id), "")
+    cat_name = next((c["name_uz"] if lang == "uz" else c["name_ru"]
+                     for c in cats if c["id"] == cat_id), "")
     await state.update_data(current_cat=cat_id)
     kb = await products_kb(cat_id, lang, cart)
-    await cb.message.edit_text(t(lang, "products", cat=cat_name), reply_markup=kb, parse_mode="HTML")
+    await cb.message.edit_text(
+        t(lang, "products", cat=cat_name), reply_markup=kb, parse_mode="HTML"
+    )
 
 @router.callback_query(F.data.startswith("prod_info_"))
 async def show_product_detail(cb: CallbackQuery, state: FSMContext):
@@ -414,8 +521,13 @@ async def show_product_detail(cb: CallbackQuery, state: FSMContext):
     name = prod["name_uz"] if lang == "uz" else prod["name_ru"]
     unit = prod["unit_uz"] if lang == "uz" else prod["unit_ru"]
     in_cart = f"\n🛒 Savatda: {cart_qty} {unit}" if cart_qty > 0 else ""
-    text = f"🏷 <b>{name}</b>\n💰 Narxi: <b>{prod['price']:,} so'm / {unit}</b>{in_cart}\n\nMiqdor: <b>{qty}</b>"
-    await cb.message.edit_text(text, reply_markup=product_detail_kb(prod_id, lang, qty), parse_mode="HTML")
+    text = (
+        f"🏷 <b>{name}</b>\n"
+        f"💰 Narxi: <b>{prod['price']:,} so'm / {unit}</b>{in_cart}\n\n"
+        f"Miqdor: <b>{qty}</b>"
+    )
+    await cb.message.edit_text(text,
+        reply_markup=product_detail_kb(prod_id, lang, qty), parse_mode="HTML")
 
 @router.callback_query(F.data.startswith("qty_plus_"))
 async def qty_plus(cb: CallbackQuery, state: FSMContext):
@@ -438,7 +550,8 @@ async def qty_minus(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "qty_noop")
 async def qty_noop(cb: CallbackQuery):
     await cb.answer()
-    @router.callback_query(F.data.startswith("add_cart_"))
+
+@router.callback_query(F.data.startswith("add_cart_"))
 async def add_to_cart(cb: CallbackQuery, state: FSMContext):
     prod_id = int(cb.data.split("_")[2])
     lang = await get_lang(cb.from_user.id)
@@ -501,7 +614,10 @@ async def back_to_prod_list(cb: CallbackQuery, state: FSMContext):
 async def back_to_main(cb: CallbackQuery):
     lang = await get_lang(cb.from_user.id)
     await cb.message.edit_text(t(lang, "main_menu"), parse_mode="HTML")
-    
+
+# ══════════════════════════════════════════
+# CART
+# ══════════════════════════════════════════
 @router.message(F.text.in_(["🛒 Savat", "🛒 Корзина"]))
 async def show_cart(msg: Message, state: FSMContext):
     user = await check_registered(msg)
@@ -532,6 +648,9 @@ async def clear_cart(cb: CallbackQuery, state: FSMContext):
     lang = await get_lang(cb.from_user.id)
     await cb.message.edit_text(t(lang, "cart_empty"))
 
+# ══════════════════════════════════════════
+# CHECKOUT
+# ══════════════════════════════════════════
 @router.callback_query(F.data == "checkout")
 async def checkout(cb: CallbackQuery, state: FSMContext):
     user = await db.get_user(cb.from_user.id)
@@ -595,7 +714,8 @@ async def finalize_order_confirm(msg_or_obj, state: FSMContext, lang: str):
     send = msg_or_obj.answer if hasattr(msg_or_obj, "answer") else msg_or_obj.edit_text
     await send(text, reply_markup=confirm_kb(lang), parse_mode="HTML")
     await state.set_state(Order.confirm)
-    @router.callback_query(Order.confirm, F.data == "order_confirm")
+
+@router.callback_query(Order.confirm, F.data == "order_confirm")
 async def order_confirmed(cb: CallbackQuery, state: FSMContext):
     user = await db.get_user(cb.from_user.id)
     lang = user["lang"]
@@ -635,6 +755,9 @@ async def order_cancelled_cb(cb: CallbackQuery, state: FSMContext):
     await cb.message.edit_text(t(lang, "order_cancelled"))
     await state.clear()
 
+# ══════════════════════════════════════════
+# ORDER STATUS (ADMIN updates)
+# ══════════════════════════════════════════
 @router.callback_query(F.data.startswith("status_"))
 async def update_order_status_cb(cb: CallbackQuery):
     parts = cb.data.split("_")
@@ -647,6 +770,7 @@ async def update_order_status_cb(cb: CallbackQuery):
     order = await db.get_order(order_id)
     status_label_uz = STATUS_LABELS.get(new_status, {}).get("uz", new_status)
     status_label_ru = STATUS_LABELS.get(new_status, {}).get("ru", new_status)
+    # Mijozga xabar
     try:
         user = await db.get_user(order["user_id"])
         lang = user["lang"] if user else "uz"
@@ -660,7 +784,11 @@ async def update_order_status_cb(cb: CallbackQuery):
         pass
     await cb.answer(f"✅ Status: {status_label_uz}")
     await cb.message.edit_reply_markup(reply_markup=order_status_kb(order_id))
-    @router.message(F.text.in_(["🔁 Oxirgi zakaz", "🔁 Повторить заказ"]))
+
+# ══════════════════════════════════════════
+# REPEAT ORDER
+# ══════════════════════════════════════════
+@router.message(F.text.in_(["🔁 Oxirgi zakaz", "🔁 Повторить заказ"]))
 async def repeat_last_order(msg: Message, state: FSMContext):
     user = await check_registered(msg)
     if not user:
@@ -692,6 +820,9 @@ async def repeat_last_order(msg: Message, state: FSMContext):
         reply_markup=cart_kb(lang), parse_mode="HTML"
     )
 
+# ══════════════════════════════════════════
+# SEARCH
+# ══════════════════════════════════════════
 @router.message(F.text.in_(["🔍 Qidirish", "🔍 Поиск"]))
 async def search_start(msg: Message, state: FSMContext):
     user = await check_registered(msg)
@@ -726,6 +857,9 @@ async def search_result(msg: Message, state: FSMContext):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
 
+# ══════════════════════════════════════════
+# REVIEWS
+# ══════════════════════════════════════════
 @router.message(F.text.in_(["⭐ Izoh qoldirish", "⭐ Оставить отзыв"]))
 async def review_start(msg: Message, state: FSMContext):
     user = await check_registered(msg)
@@ -752,6 +886,7 @@ async def review_text(msg: Message, state: FSMContext):
     await msg.answer(t(lang, "review_sent"))
     for admin_id in ADMIN_IDS:
         try:
+            stars = "⭐" * rating
             await bot.send_message(
                 admin_id,
                 f"💬 <b>Yangi izoh</b>\n"
@@ -763,7 +898,11 @@ async def review_text(msg: Message, state: FSMContext):
         except Exception:
             pass
     await state.clear()
-    @router.message(F.text.in_(["ℹ️ Biz haqimizda", "ℹ️ О нас"]))
+
+# ══════════════════════════════════════════
+# INFO PAGES
+# ══════════════════════════════════════════
+@router.message(F.text.in_(["ℹ️ Biz haqimizda", "ℹ️ О нас"]))
 async def about(msg: Message):
     user = await check_registered(msg)
     if not user:
@@ -784,6 +923,9 @@ async def aksiyalar(msg: Message):
         return
     await msg.answer(t(user["lang"], "aksiya"), parse_mode="HTML")
 
+# ══════════════════════════════════════════
+# ADMIN PANEL
+# ══════════════════════════════════════════
 @router.message(Command("admin"))
 async def admin_panel(msg: Message, state: FSMContext):
     if msg.from_user.id not in ADMIN_IDS:
@@ -860,7 +1002,7 @@ async def admin_reviews(cb: CallbackQuery):
         return
     text = "💬 <b>So'nggi izohlar:</b>\n\n"
     for r in reviews[:10]:
-        text += f"{'⭐'*r['rating']} — {r['user_name']}\n{r['text']}\n\n"
+        text += f"⭐{'⭐'*r['rating']} — {r['user_name']}\n{r['text']}\n\n"
     await cb.message.edit_text(text, reply_markup=admin_main_kb(), parse_mode="HTML")
 
 @router.callback_query(F.data == "admin_products")
@@ -874,7 +1016,9 @@ async def admin_products(cb: CallbackQuery):
 async def admin_back(cb: CallbackQuery):
     await cb.message.edit_text("👨‍💼 <b>Admin panel</b>",
                                 reply_markup=admin_main_kb(), parse_mode="HTML")
-    @router.callback_query(F.data == "admin_add_cat")
+
+# ── ADD CATEGORY ──
+@router.callback_query(F.data == "admin_add_cat")
 async def admin_add_cat(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
         return
@@ -902,6 +1046,7 @@ async def admin_cat_emoji(msg: Message, state: FSMContext):
                      reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
 
+# ── DELETE CATEGORY ──
 @router.callback_query(F.data == "admin_del_cat")
 async def admin_del_cat_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
@@ -923,7 +1068,9 @@ async def admin_del_cat_confirm(cb: CallbackQuery, state: FSMContext):
     await db.delete_category(cat_id)
     await cb.message.edit_text("✅ Kategoriya o'chirildi.", reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
-    @router.callback_query(F.data == "admin_add_prod")
+
+# ── ADD PRODUCT ──
+@router.callback_query(F.data == "admin_add_prod")
 async def admin_add_prod_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
         return
@@ -981,7 +1128,9 @@ async def admin_prod_unit(msg: Message, state: FSMContext):
         reply_markup=admin_main_kb()
     )
     await state.set_state(AdminSt.main)
-    @router.callback_query(F.data == "admin_del_prod")
+
+# ── DELETE PRODUCT ──
+@router.callback_query(F.data == "admin_del_prod")
 async def admin_del_prod_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
         return
@@ -1020,6 +1169,7 @@ async def admin_del_prod_confirm(cb: CallbackQuery, state: FSMContext):
     await cb.message.edit_text("✅ Mahsulot o'chirildi.", reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
 
+# ── UPDATE PRICE ──
 @router.callback_query(F.data == "admin_update_price")
 async def admin_update_price_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
@@ -1069,7 +1219,9 @@ async def admin_update_price_val(msg: Message, state: FSMContext):
     await db.update_product_price(prod_id, new_price)
     await msg.answer(f"✅ Narx yangilandi: {new_price:,} so'm", reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
-    @router.callback_query(F.data == "admin_broadcast")
+
+# ── BROADCAST ──
+@router.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
         return
@@ -1092,6 +1244,7 @@ async def admin_broadcast_send(msg: Message, state: FSMContext):
                      reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
 
+# ── SEND AKCIYA ──
 @router.callback_query(F.data == "admin_send_akciya")
 async def admin_send_akciya_start(cb: CallbackQuery, state: FSMContext):
     if cb.from_user.id not in ADMIN_IDS:
@@ -1123,7 +1276,11 @@ async def admin_send_akciya(msg: Message, state: FSMContext):
     except Exception as e:
         await msg.answer(f"❌ Xato: {e}", reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
-    async def weekly_top_notify():
+
+# ══════════════════════════════════════════
+# SCHEDULER — Haftalik TOP (Dushanba 20:00)
+# ══════════════════════════════════════════
+async def weekly_top_notify():
     top = await db.get_weekly_top()
     if not top:
         return
@@ -1143,13 +1300,18 @@ async def admin_send_akciya(msg: Message, state: FSMContext):
         except Exception:
             pass
 
+# ══════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════
 async def main():
     await db.init_db()
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
+
     scheduler = AsyncIOScheduler(timezone="Asia/Tashkent")
     scheduler.add_job(weekly_top_notify, "cron", day_of_week="mon", hour=20, minute=0)
     scheduler.start()
+
     await dp.start_polling(bot, skip_updates=True)
 
 if __name__ == "__main__":
