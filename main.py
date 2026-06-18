@@ -1,3 +1,4 @@
+
 import asyncio
 import json
 import logging
@@ -279,8 +280,8 @@ async def categories_kb(lang):
     for c in cats:
         name = c["name_uz"] if lang == "uz" else c["name_ru"]
         buttons.append([InlineKeyboardButton(
-            text=f"{c['emoji']} {name}",
-            callback_data=f"cat_{c['id']}"
+            text="{} {}".format(c['emoji'], name),
+            callback_data="cat_{}".format(c['id'])
         )])
     back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
     buttons.append([InlineKeyboardButton(text=back, callback_data="back_main")])
@@ -293,27 +294,25 @@ async def products_kb(cat_id, lang, cart: dict):
         name = p["name_uz"] if lang == "uz" else p["name_ru"]
         unit = p["unit_uz"] if lang == "uz" else p["unit_ru"]
         qty = cart.get(str(p["id"]), {}).get("qty", 0)
-        qty_text = f" ({qty} {unit})" if qty > 0 else ""
+        qty_text = " ({} {})".format(qty, unit) if qty > 0 else ""
         buttons.append([InlineKeyboardButton(
-            text=f"{name} — {p['price']:,} so'm{qty_text}",
-            callback_data=f"prod_info_{p['id']}"
+            text="{} — {:,} so'm{}".format(name, p['price'], qty_text),
+            callback_data="prod_info_{}".format(p['id'])
         )])
     back = "🔙 Kategoriyalar" if lang == "uz" else "🔙 Категории"
     buttons.append([InlineKeyboardButton(text=back, callback_data="back_cats")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def product_detail_kb(prod_id, lang, qty):
-    minus = "➖"
-    plus = "➕"
     cart_label = "🛒 Savatga" if lang == "uz" else "🛒 В корзину"
     back = "🔙 Orqaga" if lang == "uz" else "🔙 Назад"
     row1 = [
-        InlineKeyboardButton(text=minus, callback_data=f"qty_minus_{prod_id}"),
+        InlineKeyboardButton(text="➖", callback_data="qty_minus_{}".format(prod_id)),
         InlineKeyboardButton(text=str(qty), callback_data="qty_noop"),
-        InlineKeyboardButton(text=plus, callback_data=f"qty_plus_{prod_id}"),
+        InlineKeyboardButton(text="➕", callback_data="qty_plus_{}".format(prod_id)),
     ]
-    row2 = [InlineKeyboardButton(text=cart_label, callback_data=f"add_cart_{prod_id}")]
-    row3 = [InlineKeyboardButton(text=back, callback_data=f"back_prod_{prod_id}")]
+    row2 = [InlineKeyboardButton(text=cart_label, callback_data="add_cart_{}".format(prod_id))]
+    row3 = [InlineKeyboardButton(text=back, callback_data="back_prod_{}".format(prod_id))]
     return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
 
 def cart_kb(lang):
@@ -356,16 +355,16 @@ def confirm_kb(lang):
 
 def order_status_kb(order_id):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Qabul", callback_data=f"status_{order_id}_accepted"),
-         InlineKeyboardButton(text="📦 Yig'ilmoqda", callback_data=f"status_{order_id}_packing")],
-        [InlineKeyboardButton(text="🚴 Yo'lda", callback_data=f"status_{order_id}_delivery"),
-         InlineKeyboardButton(text="✅ Yetkazildi", callback_data=f"status_{order_id}_done")],
-        [InlineKeyboardButton(text="❌ Bekor", callback_data=f"status_{order_id}_cancelled")],
+        [InlineKeyboardButton(text="✅ Qabul", callback_data="status_{}_accepted".format(order_id)),
+         InlineKeyboardButton(text="📦 Yig'ilmoqda", callback_data="status_{}_packing".format(order_id))],
+        [InlineKeyboardButton(text="🚴 Yo'lda", callback_data="status_{}_delivery".format(order_id)),
+         InlineKeyboardButton(text="✅ Yetkazildi", callback_data="status_{}_done".format(order_id))],
+        [InlineKeyboardButton(text="❌ Bekor", callback_data="status_{}_cancelled".format(order_id))],
     ])
 
 def rating_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{'⭐'*i}", callback_data=f"rating_{i}") for i in range(1, 6)]
+        [InlineKeyboardButton(text="⭐" * i, callback_data="rating_{}".format(i)) for i in range(1, 6)]
     ])
 
 def admin_main_kb():
@@ -397,25 +396,33 @@ def cart_text(cart: dict, lang: str) -> str:
     lines = []
     for i, (pid, v) in enumerate(cart.items(), 1):
         name = v["name_uz"] if lang == "uz" else v["name_ru"]
-        lines.append(f"{i}. {name} x{v['qty']} = {v['price']*v['qty']:,} so'm")
+        lines.append("{}. {} x{} = {:,} so'm".format(i, name, v['qty'], v['price'] * v['qty']))
     return "\n".join(lines)
 
 def format_order_for_admin(order, user) -> str:
     items = json.loads(order["items"])
-    items_text = ""
+    items_lines = []
     for i, item in enumerate(items, 1):
-        items_text += f"{i}. {item['name_uz']} x{item['qty']} = {item['price']*item['qty']:,} so'm\n"
+        items_lines.append("{}. {} x{} = {:,} so'm".format(
+            i, item['name_uz'], item['qty'], item['price'] * item['qty']
+        ))
+    items_text = "\n".join(items_lines)
     dtype = "🚚 Yetkazib berish" if order["delivery_type"] == "delivery" else "🏪 O'zim oladi"
+    user_name = user['name'] if user else "Noma'lum"
     return (
-        f"🆕 <b>Yangi zakaz #{order['id']}</b>\n\n"
-        f"👤 Mijoz: {user['name'] if user else 'Noma'lum'}\n"
-        f"📱 Telefon: <code>{order['phone']}</code>\n"
-        f"🏘 Hudud: {order['district']}\n"
-        f"🚚 Turi: {dtype}\n"
-        f"📍 Manzil: {order['address']}\n\n"
-        f"🛒 <b>Mahsulotlar:</b>\n{items_text}\n"
-        f"💰 Jami: <b>{order['total']:,} so'm</b>\n"
-        f"⚠️ Yetkazilgan mahsulot qaytarib olinmaydi!"
+        "🆕 <b>Yangi zakaz #{}</b>\n\n"
+        "👤 Mijoz: {}\n"
+        "📱 Telefon: <code>{}</code>\n"
+        "🏘 Hudud: {}\n"
+        "🚚 Turi: {}\n"
+        "📍 Manzil: {}\n\n"
+        "🛒 <b>Mahsulotlar:</b>\n{}\n\n"
+        "💰 Jami: <b>{:,} so'm</b>\n"
+        "⚠️ Yetkazilgan mahsulot qaytarib olinmaydi!"
+    ).format(
+        order['id'], user_name, order['phone'],
+        order['district'], dtype, order['address'],
+        items_text, order['total']
     )
 
 # ══════════════════════════════════════════
@@ -520,12 +527,12 @@ async def show_product_detail(cb: CallbackQuery, state: FSMContext):
     cart_qty = cart.get(str(prod_id), {}).get("qty", 0)
     name = prod["name_uz"] if lang == "uz" else prod["name_ru"]
     unit = prod["unit_uz"] if lang == "uz" else prod["unit_ru"]
-    in_cart = f"\n🛒 Savatda: {cart_qty} {unit}" if cart_qty > 0 else ""
+    in_cart = "\n🛒 Savatda: {} {}".format(cart_qty, unit) if cart_qty > 0 else ""
     text = (
-        f"🏷 <b>{name}</b>\n"
-        f"💰 Narxi: <b>{prod['price']:,} so'm / {unit}</b>{in_cart}\n\n"
-        f"Miqdor: <b>{qty}</b>"
-    )
+        "🏷 <b>{}</b>\n"
+        "💰 Narxi: <b>{:,} so'm / {}</b>{}\n\n"
+        "Miqdor: <b>{}</b>"
+    ).format(name, prod['price'], unit, in_cart, qty)
     await cb.message.edit_text(text,
         reply_markup=product_detail_kb(prod_id, lang, qty), parse_mode="HTML")
 
@@ -581,8 +588,8 @@ async def add_to_cart(cb: CallbackQuery, state: FSMContext):
     warn = ""
     if total < min_sum:
         diff = min_sum - total
-        warn = f"\n\n{t(lang, 'cart_min_warn', district=district, min=min_sum, diff=diff)}"
-    await cb.answer(t(lang, "added_to_cart") + f"\n💰 Jami: {total:,} so'm", show_alert=True)
+        warn = "\n\n" + t(lang, "cart_min_warn", district=district, min=min_sum, diff=diff)
+    await cb.answer(t(lang, "added_to_cart") + "\n💰 Jami: {:,} so'm".format(total), show_alert=True)
     if warn:
         await cb.message.answer(warn, parse_mode="HTML")
 
@@ -636,7 +643,7 @@ async def show_cart(msg: Message, state: FSMContext):
     warn = ""
     if total < min_sum:
         diff = min_sum - total
-        warn = f"\n\n{t(lang, 'cart_min_warn', district=district, min=min_sum, diff=diff)}"
+        warn = "\n\n" + t(lang, "cart_min_warn", district=district, min=min_sum, diff=diff)
     await msg.answer(
         t(lang, "cart_title", items=items_text, total=total) + warn,
         reply_markup=cart_kb(lang), parse_mode="HTML"
@@ -704,8 +711,10 @@ async def finalize_order_confirm(msg_or_obj, state: FSMContext, lang: str):
     address = data.get("address", "")
     user_id = msg_or_obj.chat.id if hasattr(msg_or_obj, "chat") else msg_or_obj.from_user.id
     user = await db.get_user(user_id)
-    dtype_text = ("🚚 Yetkazib berish" if dtype == "delivery" else "🏪 O'zim olib ketaman") if lang == "uz" else \
-                 ("🚚 Доставка" if dtype == "delivery" else "🏪 Самовывоз")
+    if lang == "uz":
+        dtype_text = "🚚 Yetkazib berish" if dtype == "delivery" else "🏪 O'zim olib ketaman"
+    else:
+        dtype_text = "🚚 Доставка" if dtype == "delivery" else "🏪 Самовывоз"
     items_text = cart_text(cart, lang)
     text = t(lang, "order_confirm",
              items=items_text, total=total,
@@ -770,19 +779,18 @@ async def update_order_status_cb(cb: CallbackQuery):
     order = await db.get_order(order_id)
     status_label_uz = STATUS_LABELS.get(new_status, {}).get("uz", new_status)
     status_label_ru = STATUS_LABELS.get(new_status, {}).get("ru", new_status)
-    # Mijozga xabar
     try:
         user = await db.get_user(order["user_id"])
         lang = user["lang"] if user else "uz"
         label = status_label_uz if lang == "uz" else status_label_ru
         await bot.send_message(
             order["user_id"],
-            f"📦 <b>Zakaz #{order_id}</b> holati yangilandi:\n{label}",
+            "📦 <b>Zakaz #{}</b> holati yangilandi:\n{}".format(order_id, label),
             parse_mode="HTML"
         )
     except Exception:
         pass
-    await cb.answer(f"✅ Status: {status_label_uz}")
+    await cb.answer("✅ Status: {}".format(status_label_uz))
     await cb.message.edit_reply_markup(reply_markup=order_status_kb(order_id))
 
 # ══════════════════════════════════════════
@@ -847,13 +855,13 @@ async def search_result(msg: Message, state: FSMContext):
         name = p["name_uz"] if lang == "uz" else p["name_ru"]
         unit = p["unit_uz"] if lang == "uz" else p["unit_ru"]
         qty = cart.get(str(p["id"]), {}).get("qty", 0)
-        qty_text = f" ({qty} {unit})" if qty > 0 else ""
+        qty_text = " ({} {})".format(qty, unit) if qty > 0 else ""
         buttons.append([InlineKeyboardButton(
-            text=f"{name} — {p['price']:,} so'm{qty_text}",
-            callback_data=f"prod_info_{p['id']}"
+            text="{} — {:,} so'm{}".format(name, p['price'], qty_text),
+            callback_data="prod_info_{}".format(p['id'])
         )])
     await msg.answer(
-        f"🔍 {len(results)} ta topildi:",
+        "🔍 {} ta topildi:".format(len(results)),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
 
@@ -884,15 +892,15 @@ async def review_text(msg: Message, state: FSMContext):
     rating = data.get("rating", 5)
     await db.add_review(msg.from_user.id, msg.from_user.full_name, msg.text, rating)
     await msg.answer(t(lang, "review_sent"))
+    stars = "⭐" * rating
     for admin_id in ADMIN_IDS:
         try:
-            stars = "⭐" * rating
             await bot.send_message(
                 admin_id,
-                f"💬 <b>Yangi izoh</b>\n"
-                f"👤 {msg.from_user.full_name}\n"
-                f"{'⭐'*rating} ({rating}/5)\n\n"
-                f"{msg.text}",
+                "💬 <b>Yangi izoh</b>\n"
+                "👤 {}\n"
+                "{} ({}/5)\n\n"
+                "{}".format(msg.from_user.full_name, stars, rating, msg.text),
                 parse_mode="HTML"
             )
         except Exception:
@@ -940,9 +948,9 @@ async def admin_users(cb: CallbackQuery):
     users = await db.get_all_users()
     count = len(users)
     recent = users[:5]
-    text = f"👥 <b>Jami mijozlar: {count} ta</b>\n\n<b>So'nggi 5 ta:</b>\n"
+    text = "👥 <b>Jami mijozlar: {} ta</b>\n\n<b>So'nggi 5 ta:</b>\n".format(count)
     for u in recent:
-        text += f"• {u['name']} | {u['phone']} | {u['district']}\n"
+        text += "• {} | {} | {}\n".format(u['name'], u['phone'], u['district'])
     await cb.message.edit_text(text, reply_markup=admin_main_kb(), parse_mode="HTML")
 
 @router.callback_query(F.data == "admin_weekly")
@@ -951,10 +959,10 @@ async def admin_weekly(cb: CallbackQuery):
         return
     stats = await db.get_weekly_sales()
     text = (
-        f"📊 <b>Bu haftalik savdo</b>\n\n"
-        f"📦 Zakazlar soni: <b>{stats['count']}</b>\n"
-        f"💰 Jami summa: <b>{stats['total']:,} so'm</b>"
-    )
+        "📊 <b>Bu haftalik savdo</b>\n\n"
+        "📦 Zakazlar soni: <b>{}</b>\n"
+        "💰 Jami summa: <b>{:,} so'm</b>"
+    ).format(stats['count'], stats['total'])
     await cb.message.edit_text(text, reply_markup=admin_main_kb(), parse_mode="HTML")
 
 @router.callback_query(F.data == "admin_top")
@@ -965,12 +973,13 @@ async def admin_top(cb: CallbackQuery):
     text = "🏆 <b>Bu haftaning TOP xaridorlari</b>\n\n"
     medals = ["🥇", "🥈", "🥉"]
     for i, u in enumerate(top):
-        medal = medals[i] if i < 3 else f"{i+1}."
+        medal = medals[i] if i < 3 else "{}.".format(i + 1)
         text += (
-            f"{medal} {u['name'] or 'Noma\\'lum'}\n"
-            f"   📱 {u['phone']} | 🏘 {u['district']}\n"
-            f"   📦 {u['order_count']} zakaz | 💰 {u['total_sum']:,} so'm\n\n"
-        )
+            "{} {}\n"
+            "   📱 {} | 🏘 {}\n"
+            "   📦 {} zakaz | 💰 {:,} so'm\n\n"
+        ).format(medal, u['name'] or "Noma'lum", u['phone'], u['district'],
+                 u['order_count'], u['total_sum'])
     if not top:
         text += "Hozircha ma'lumot yo'q."
     await cb.message.edit_text(text, reply_markup=admin_main_kb(), parse_mode="HTML")
@@ -1002,7 +1011,7 @@ async def admin_reviews(cb: CallbackQuery):
         return
     text = "💬 <b>So'nggi izohlar:</b>\n\n"
     for r in reviews[:10]:
-        text += f"⭐{'⭐'*r['rating']} — {r['user_name']}\n{r['text']}\n\n"
+        text += "{} — {}\n{}\n\n".format("⭐" * r['rating'], r['user_name'], r['text'])
     await cb.message.edit_text(text, reply_markup=admin_main_kb(), parse_mode="HTML")
 
 @router.callback_query(F.data == "admin_products")
@@ -1042,8 +1051,10 @@ async def admin_cat_emoji(msg: Message, state: FSMContext):
     data = await state.get_data()
     emoji = msg.text if msg.text.lower() != "skip" else "📦"
     await db.add_category(data["cat_uz"], data["cat_ru"], emoji)
-    await msg.answer(f"✅ Kategoriya qo'shildi: {emoji} {data['cat_uz']}",
-                     reply_markup=admin_main_kb())
+    await msg.answer(
+        "✅ Kategoriya qo'shildi: {} {}".format(emoji, data['cat_uz']),
+        reply_markup=admin_main_kb()
+    )
     await state.set_state(AdminSt.main)
 
 # ── DELETE CATEGORY ──
@@ -1053,8 +1064,8 @@ async def admin_del_cat_start(cb: CallbackQuery, state: FSMContext):
         return
     cats = await db.get_categories()
     buttons = [[InlineKeyboardButton(
-        text=f"{c['emoji']} {c['name_uz']}",
-        callback_data=f"delcat_{c['id']}"
+        text="{} {}".format(c['emoji'], c['name_uz']),
+        callback_data="delcat_{}".format(c['id'])
     )] for c in cats]
     await cb.message.edit_text(
         "O'chirmoqchi bo'lgan kategoriyani tanlang:",
@@ -1076,8 +1087,8 @@ async def admin_add_prod_start(cb: CallbackQuery, state: FSMContext):
         return
     cats = await db.get_categories()
     buttons = [[InlineKeyboardButton(
-        text=f"{c['emoji']} {c['name_uz']}",
-        callback_data=f"addprod_cat_{c['id']}"
+        text="{} {}".format(c['emoji'], c['name_uz']),
+        callback_data="addprod_cat_{}".format(c['id'])
     )] for c in cats]
     await cb.message.edit_text(
         "Qaysi kategoriyaga mahsulot qo'shmoqchisiz?",
@@ -1124,7 +1135,9 @@ async def admin_prod_unit(msg: Message, state: FSMContext):
         data["prod_price"], unit_uz, unit_ru
     )
     await msg.answer(
-        f"✅ Mahsulot qo'shildi:\n{data['prod_uz']} — {data['prod_price']:,} so'm/{unit_uz}",
+        "✅ Mahsulot qo'shildi:\n{} — {:,} so'm/{}".format(
+            data['prod_uz'], data['prod_price'], unit_uz
+        ),
         reply_markup=admin_main_kb()
     )
     await state.set_state(AdminSt.main)
@@ -1136,8 +1149,8 @@ async def admin_del_prod_start(cb: CallbackQuery, state: FSMContext):
         return
     cats = await db.get_categories()
     buttons = [[InlineKeyboardButton(
-        text=f"{c['emoji']} {c['name_uz']}",
-        callback_data=f"delprod_cat_{c['id']}"
+        text="{} {}".format(c['emoji'], c['name_uz']),
+        callback_data="delprod_cat_{}".format(c['id'])
     )] for c in cats]
     await cb.message.edit_text(
         "Qaysi kategoriyadan mahsulot o'chirasiz?",
@@ -1154,8 +1167,8 @@ async def admin_del_prod_cat(cb: CallbackQuery, state: FSMContext):
                                     reply_markup=admin_products_kb())
         return
     buttons = [[InlineKeyboardButton(
-        text=f"{p['name_uz']} — {p['price']:,} so'm",
-        callback_data=f"delprod_{p['id']}"
+        text="{} — {:,} so'm".format(p['name_uz'], p['price']),
+        callback_data="delprod_{}".format(p['id'])
     )] for p in prods]
     await cb.message.edit_text(
         "O'chirmoqchi bo'lgan mahsulotni tanlang:",
@@ -1176,8 +1189,8 @@ async def admin_update_price_start(cb: CallbackQuery, state: FSMContext):
         return
     cats = await db.get_categories()
     buttons = [[InlineKeyboardButton(
-        text=f"{c['emoji']} {c['name_uz']}",
-        callback_data=f"updprice_cat_{c['id']}"
+        text="{} {}".format(c['emoji'], c['name_uz']),
+        callback_data="updprice_cat_{}".format(c['id'])
     )] for c in cats]
     await cb.message.edit_text(
         "Qaysi kategoriyadan mahsulot narxini o'zgartirasiz?",
@@ -1190,8 +1203,8 @@ async def admin_update_price_cat(cb: CallbackQuery, state: FSMContext):
     cat_id = int(cb.data.split("_")[2])
     prods = await db.get_products(cat_id)
     buttons = [[InlineKeyboardButton(
-        text=f"{p['name_uz']} — {p['price']:,} so'm",
-        callback_data=f"updprice_{p['id']}"
+        text="{} — {:,} so'm".format(p['name_uz'], p['price']),
+        callback_data="updprice_{}".format(p['id'])
     )] for p in prods]
     await cb.message.edit_text(
         "Mahsulotni tanlang:",
@@ -1204,7 +1217,7 @@ async def admin_update_price_prod(cb: CallbackQuery, state: FSMContext):
     await state.update_data(update_prod_id=prod_id)
     prod = await db.get_product(prod_id)
     await cb.message.edit_text(
-        f"Yangi narxini yozing (hozirgi: {prod['price']:,} so'm):"
+        "Yangi narxini yozing (hozirgi: {:,} so'm):".format(prod['price'])
     )
     await state.set_state(AdminSt.update_price_val)
 
@@ -1217,7 +1230,7 @@ async def admin_update_price_val(msg: Message, state: FSMContext):
     prod_id = data.get("update_prod_id")
     new_price = int(msg.text)
     await db.update_product_price(prod_id, new_price)
-    await msg.answer(f"✅ Narx yangilandi: {new_price:,} so'm", reply_markup=admin_main_kb())
+    await msg.answer("✅ Narx yangilandi: {:,} so'm".format(new_price), reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
 
 # ── BROADCAST ──
@@ -1236,12 +1249,18 @@ async def admin_broadcast_send(msg: Message, state: FSMContext):
     success = 0
     for u in users:
         try:
-            await bot.send_message(u["id"], f"📢 <b>Jaxon Market</b>\n\n{msg.text}", parse_mode="HTML")
+            await bot.send_message(
+                u["id"],
+                "📢 <b>Jaxon Market</b>\n\n{}".format(msg.text),
+                parse_mode="HTML"
+            )
             success += 1
         except Exception:
             pass
-    await msg.answer(f"✅ {success}/{len(users)} ta foydalanuvchiga yuborildi.",
-                     reply_markup=admin_main_kb())
+    await msg.answer(
+        "✅ {}/{} ta foydalanuvchiga yuborildi.".format(success, len(users)),
+        reply_markup=admin_main_kb()
+    )
     await state.set_state(AdminSt.main)
 
 # ── SEND AKCIYA ──
@@ -1265,16 +1284,16 @@ async def admin_send_akciya(msg: Message, state: FSMContext):
     try:
         await bot.send_message(
             winner["user_id"],
-            f"🎉 <b>Jaxon Market maxsus taklifi!</b>\n\n{msg.text}\n\n"
-            f"Siz bu haftaning eng faol xaridorisiz! 🏆",
+            "🎉 <b>Jaxon Market maxsus taklifi!</b>\n\n{}\n\n"
+            "Siz bu haftaning eng faol xaridorisiz! 🏆".format(msg.text),
             parse_mode="HTML"
         )
         await msg.answer(
-            f"✅ Aksiya yuborildi:\n👤 {winner['name']} | 📱 {winner['phone']}",
+            "✅ Aksiya yuborildi:\n👤 {} | 📱 {}".format(winner['name'], winner['phone']),
             reply_markup=admin_main_kb()
         )
     except Exception as e:
-        await msg.answer(f"❌ Xato: {e}", reply_markup=admin_main_kb())
+        await msg.answer("❌ Xato: {}".format(e), reply_markup=admin_main_kb())
     await state.set_state(AdminSt.main)
 
 # ══════════════════════════════════════════
@@ -1286,13 +1305,16 @@ async def weekly_top_notify():
         return
     winner = top[0]
     text = (
-        f"🏆 <b>Bu haftaning TOP xaridori</b>\n\n"
-        f"👤 Ism: {winner['name']}\n"
-        f"📱 Tel: {winner['phone']}\n"
-        f"🏘 Hudud: {winner['district']}\n"
-        f"📦 Zakazlar: {winner['order_count']}\n"
-        f"💰 Summa: {winner['total_sum']:,} so'm\n\n"
-        f"Aksiya yuborish uchun /admin → 📢 Aksiya yuborish"
+        "🏆 <b>Bu haftaning TOP xaridori</b>\n\n"
+        "👤 Ism: {}\n"
+        "📱 Tel: {}\n"
+        "🏘 Hudud: {}\n"
+        "📦 Zakazlar: {}\n"
+        "💰 Summa: {:,} so'm\n\n"
+        "Aksiya yuborish uchun /admin → 📢 Aksiya yuborish"
+    ).format(
+        winner['name'], winner['phone'], winner['district'],
+        winner['order_count'], winner['total_sum']
     )
     for admin_id in ADMIN_IDS:
         try:
