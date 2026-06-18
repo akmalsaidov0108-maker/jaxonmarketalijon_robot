@@ -1,2 +1,5 @@
 [phases.setup]
 nixPkgs = ["python311", "gcc", "rust"]
+
+[variables]
+NIXPACKS_PYTHON_VERSION = "3.11"
