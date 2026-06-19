@@ -1,0 +1,11 @@
+from datetime import datetime
+import pytz
+
+def ish_vaqti_tekshirish():
+    tashkent_tz = pytz.timezone('Asia/Tashkent')
+    now = datetime.now(tashkent_tz)
+    
+    if 8 <= now.hour < 21:
+        return True   # ish vaqti
+    else:
+        return False  # ish vaqti emas
